@@ -8,7 +8,38 @@ var builder = WebApplication.CreateBuilder(args);
 // Add services to the container.
 builder.Services.AddControllersWithViews();
 
+// ── 1. "Giriş zorunlu" filtresi ─────────────────────────────
+//
+// ⭐ Neden global filtre, her controller'a [Authorize] değil?
+//    Yarın yeni controller yazıp [Authorize] koymayı unutursan
+//    o sayfa herkese açık kalır. Global filtreyle varsayılan KAPALI olur.
+//    GÜVENLİK İLKESİ: varsayılan hep en kısıtlayıcı seçenek olmalı.
+builder.Services.AddControllersWithViews(secenekler =>
+{
+    var politika = new AuthorizationPolicyBuilder()
+        .RequireAuthenticatedUser()
+        .Build();
+
+    secenekler.Filters.Add(new AuthorizeFilter(politika));
+});
+
+// ── 2. Çerez ayarı ──────────────────────────────────────────
+builder.Services
+    .AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
+    .AddCookie(secenekler =>
+    {
+        secenekler.LoginPath = "/Hesap/Giris";
+        secenekler.ReturnUrlParameter = "donusUrl";   // controller parametresiyle aynı olmalı!
+        secenekler.ExpireTimeSpan = TimeSpan.FromHours(8);
+        secenekler.SlidingExpiration = true;
+        secenekler.Cookie.HttpOnly = true;            // JS çereze erişemez → XSS koruması
+        secenekler.Cookie.SameSite = SameSiteMode.Lax; // CSRF koruması
+        secenekler.Cookie.Name = "GorevTakip.Oturum";
+    });
+
+
 builder.Services.AddScoped<KullaniciRepository>();
+builder.Services.AddScoped<KategoriRepository>();
 
 var app = builder.Build();
 
@@ -23,7 +54,9 @@ if (!app.Environment.IsDevelopment())
 app.UseHttpsRedirection();
 app.UseRouting();
 
-app.UseAuthorization();
+// ⭐⭐ SIRA KRİTİK
+app.UseAuthentication();   // ÖNCE: "sen kimsin?" (çerezi okur)
+app.UseAuthorization();    // SONRA: "girebilir mi?" (filtreyi uygular)
 
 app.MapStaticAssets();
 

@@ -87,7 +87,32 @@
                             @DateTime.Now.ToString("dd MMMM yyyy")
                         </span>
 
-                        @* Kullanıcı menüsü Modül 2'de buraya eklenecek *@
+                        @if (User.Identity != null && User.Identity.IsAuthenticated)
+                        {
+                            <div class="dropdown">
+                                <button class="btn btn-sm btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown">
+                                    <i class="bi bi-person-circle"></i> @User.Identity.Name
+                                </button>
+                                <ul class="dropdown-menu dropdown-menu-end">
+                                    <li>
+                                        <span class="dropdown-item-text small text-muted">
+                                            @User.FindFirst("KullaniciAdi")?.Value
+                                        </span>
+                                    </li>
+                                    <li>
+                                        <hr class="dropdown-divider">
+                                    </li>
+                                    <li>
+                                        @* Çıkış POST olmalı — sebebi controller'da yazılı *@
+                                        <form asp-controller="Hesap" asp-action="Cikis" method="post">
+                                            <button type="submit" class="dropdown-item text-danger">
+                                                <i class="bi bi-box-arrow-right"></i> Çıkış yap
+                                            </button>
+                                        </form>
+                                    </li>
+                                </ul>
+                            </div>
+                        }
                     </div>
                 </div>
 
