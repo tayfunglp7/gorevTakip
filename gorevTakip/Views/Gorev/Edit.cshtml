@@ -1,0 +1,118 @@
+@model GorevTakip.Models.Gorev
+@{
+    ViewData["Title"] = "Görevi düzenle";
+}
+
+<div class="row">
+    <div class="col-lg-8">
+        <div class="card border-0 shadow-sm">
+            <div class="card-body">
+                <form asp-action="Edit" method="post">
+
+                    @* ═══ GİZLİ ALANLAR ═══
+                       Formda görünmeyen ama sunucuya taşınması gereken veriler.
+                       Bunlar olmazsa POST'ta boş/sıfır gelirler. *@
+
+                    @* Hangi kaydı güncelliyoruz? WHERE için şart. *@
+                    <input type="hidden" asp-for="GorevId" />
+
+                    @* Kayıt tarihi değişmemeli *@
+                    <input type="hidden" asp-for="CreatedDate" />
+
+                    @* Aktiflik durumu korunmalı *@
+                    <input type="hidden" asp-for="AktifMi" />
+
+                    @* Zaten tamamlanmış bir görev düzenleniyorsa
+                       eski tamamlanma tarihi korunsun *@
+                    <input type="hidden" asp-for="TamamlanmaTarihi" />
+
+                    <div asp-validation-summary="ModelOnly" class="alert alert-danger"></div>
+
+                    <div class="mb-3">
+                        <label asp-for="Baslik" class="form-label"></label>
+                        <input asp-for="Baslik" class="form-control" />
+                        <span asp-validation-for="Baslik" class="text-danger small"></span>
+                    </div>
+
+                    <div class="mb-3">
+                        <label asp-for="Aciklama" class="form-label"></label>
+                        <textarea asp-for="Aciklama" class="form-control" rows="3"></textarea>
+                        <span asp-validation-for="Aciklama" class="text-danger small"></span>
+                    </div>
+
+                    <div class="row">
+
+                        <div class="col-md-4 mb-3">
+                            <label asp-for="KategoriId" class="form-label"></label>
+                            @* Controller'da KategoriListesiniHazirla(gorev.KategoriId)
+                               çağrıldığı için mevcut kategori seçili gelir *@
+                            <select asp-for="KategoriId" asp-items="ViewBag.Kategoriler" class="form-select">
+                                <option value="">-- Kategori seçin --</option>
+                            </select>
+                            <span asp-validation-for="KategoriId" class="text-danger small"></span>
+                        </div>
+
+                        <div class="col-md-4 mb-3">
+                            <label asp-for="Oncelik" class="form-label"></label>
+                            @* asp-for kullandığımız için model'deki değere uyan
+                               seçenek OTOMATİK işaretlenir — elle selected yazma *@
+                            <select asp-for="Oncelik" class="form-select">
+                                <option value="1">Düşük</option>
+                                <option value="2">Orta</option>
+                                <option value="3">Yüksek</option>
+                            </select>
+                            <span asp-validation-for="Oncelik" class="text-danger small"></span>
+                        </div>
+
+                        <div class="col-md-4 mb-3">
+                            <label asp-for="Durum" class="form-label"></label>
+                            <select asp-for="Durum" class="form-select">
+                                <option value="Beklemede">Beklemede</option>
+                                <option value="Devam ediyor">Devam ediyor</option>
+                                <option value="Tamamlandi">Tamamlandı</option>
+                            </select>
+                            <span asp-validation-for="Durum" class="text-danger small"></span>
+                        </div>
+
+                    </div>
+
+                    <div class="mb-3">
+                        <label asp-for="BitisTarihi" class="form-label"></label>
+                        <input asp-for="BitisTarihi" type="date" class="form-control" style="max-width: 220px;" />
+                        <span asp-validation-for="BitisTarihi" class="text-danger small"></span>
+                        <div class="form-text">Boş bırakılabilir.</div>
+                    </div>
+
+                    @* Kayıt geçmişi — bilgi amaçlı, düzenlenemez *@
+                    <div class="text-muted small mb-3">
+                        <i class="bi bi-clock-history"></i>
+                        Oluşturuldu: @Model.CreatedDate.ToString("dd.MM.yyyy HH:mm")
+
+                        @if (Model.UpdatedDate.HasValue)
+                        {
+                            @* .Value şart — UpdatedDate nullable *@
+                            <span> &nbsp;|&nbsp; Güncellendi: @Model.UpdatedDate.Value.ToString("dd.MM.yyyy HH:mm")</span>
+                        }
+
+                        @if (Model.TamamlanmaTarihi.HasValue)
+                        {
+                            <span> &nbsp;|&nbsp; Tamamlandı: @Model.TamamlanmaTarihi.Value.ToString("dd.MM.yyyy HH:mm")</span>
+                        }
+                    </div>
+
+                    <hr />
+
+                    <button type="submit" class="btn btn-success">
+                        <i class="bi bi-check-lg"></i> Değişiklikleri kaydet
+                    </button>
+                    <a asp-action="Index" class="btn btn-outline-secondary">Vazgeç</a>
+
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}
