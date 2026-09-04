@@ -228,4 +228,151 @@ public class GorevRepository
 
         // created_date'e dokunmuyoruz — kayıt tarihi değişmemeli
     }
+
+    // ════════════════════════════════════════════════════════
+    //  5) DELETE — soft delete
+    // ════════════════════════════════════════════════════════
+    public void PasifYap(long id)
+    {
+        // Kayıt SİLİNMİYOR, pasif işaretleniyor.
+        // TumunuGetir() içindeki WHERE aktif_mi = 1 onu listeden gizler.
+        string sql = @"UPDATE gorev
+                       SET aktif_mi = 0, updated_date = @updatedDate
+                       WHERE gorev_id = @id";
+
+        using (SqlConnection baglanti = new SqlConnection(_baglantiMetni))
+        using (SqlCommand komut = new SqlCommand(sql, baglanti))
+        {
+            komut.Parameters.AddWithValue("@updatedDate", DateTime.Now);
+            komut.Parameters.AddWithValue("@id", id);
+
+            baglanti.Open();
+            komut.ExecuteNonQuery();
+        }
+    }
+
+    /// <summary>
+    /// Görevin durumunu değiştirir.
+    ///
+    /// ⭐ tamamlanma_tarihi'ni de birlikte yönetiyoruz:
+    ///    Tamamlandıysa  → şu anki tarih yazılır
+    ///    Geri alındıysa → NULL yapılır
+    ///
+    /// İkisini ayrı ayrı güncelleseydik biri değişip diğeri
+    /// değişmediğinde tutarsız veri oluşurdu.
+    /// </summary>
+    public void DurumDegistir(long id, string yeniDurum)
+    {
+        string sql = @"UPDATE gorev
+                   SET durum = @durum,
+                       tamamlanma_tarihi = @tamamlanmaTarihi,
+                       updated_date = @updatedDate
+                   WHERE gorev_id = @id";
+
+        using (SqlConnection baglanti = new SqlConnection(_baglantiMetni))
+        using (SqlCommand komut = new SqlCommand(sql, baglanti))
+        {
+            komut.Parameters.AddWithValue("@durum", yeniDurum);
+
+            // Tamamlandıysa tarih yaz, değilse NULL
+            if (yeniDurum == "Tamamlandi")
+                komut.Parameters.AddWithValue("@tamamlanmaTarihi", DateTime.Now);
+            else
+                komut.Parameters.AddWithValue("@tamamlanmaTarihi", DBNull.Value);
+
+            komut.Parameters.AddWithValue("@updatedDate", DateTime.Now);
+            komut.Parameters.AddWithValue("@id", id);
+
+            baglanti.Open();
+            komut.ExecuteNonQuery();
+        }
+    }
+
+    /// <summary>
+    /// Görevleri filtreleyerek getirir. Tüm parametreler isteğe bağlıdır.
+    /// </summary>
+    /// <param name="arama">Başlık veya açıklamada aranacak metin</param>
+    /// <param name="kategoriId">Belirli kategori (null = hepsi)</param>
+    /// <param name="durum">Belirli durum (null = hepsi)</param>
+    /// <param name="oncelik">Belirli öncelik (null = hepsi)</param>
+    /// <param name="sadeceGecikmis">true ise yalnızca gecikmiş görevler</param>
+    public List<Gorev> Filtrele(string? arama, long? kategoriId, string? durum,
+                                int? oncelik, bool sadeceGecikmis)
+    {
+        var liste = new List<Gorev>();
+
+        // ── Koşulları parça parça kur ────────────────────────────
+        // ⚠️ SQL METNİNİ parçalıyoruz — bu güvenli.
+        //    DEĞERLERİ hep parametre olarak veriyoruz — bu şart.
+        string kosullar = " WHERE g.aktif_mi = 1 ";
+
+        if (!string.IsNullOrWhiteSpace(arama))
+            kosullar += " AND (g.baslik LIKE @arama OR g.aciklama LIKE @arama) ";
+
+        if (kategoriId.HasValue && kategoriId.Value > 0)
+            kosullar += " AND g.kategori_id = @kategoriId ";
+
+        if (!string.IsNullOrWhiteSpace(durum))
+            kosullar += " AND g.durum = @durum ";
+
+        if (oncelik.HasValue && oncelik.Value > 0)
+            kosullar += " AND g.oncelik = @oncelik ";
+
+        if (sadeceGecikmis)
+        {
+            // Gecikmiş = tarihi var + geçmiş + tamamlanmamış
+            // (Model'deki GecikmisMi özelliğinin SQL karşılığı)
+            kosullar += @" AND g.bitis_tarihi IS NOT NULL
+                       AND g.bitis_tarihi < CAST(GETDATE() AS DATE)
+                       AND g.durum <> 'Tamamlandi' ";
+        }
+
+        string sql = @"SELECT g.gorev_id, g.kategori_id, g.baslik, g.aciklama,
+                          g.oncelik, g.durum, g.bitis_tarihi, g.tamamlanma_tarihi,
+                          g.created_date, g.updated_date, g.aktif_mi,
+                          k.kategori_ad, k.renk
+                   FROM gorev g
+                   INNER JOIN kategori k ON g.kategori_id = k.kategori_id"
+                     + kosullar +
+                     @" ORDER BY
+                        CASE WHEN g.durum = 'Tamamlandi' THEN 1 ELSE 0 END,
+                        g.oncelik DESC,
+                        CASE WHEN g.bitis_tarihi IS NULL THEN 1 ELSE 0 END,
+                        g.bitis_tarihi";
+
+        using (SqlConnection baglanti = new SqlConnection(_baglantiMetni))
+        using (SqlCommand komut = new SqlCommand(sql, baglanti))
+        {
+            // ⚠️ Parametreyi eklerken koşulun EKLENDİĞİ durumla
+            //    aynı if'i kullan. Biri varsa diğeri de olmalı,
+            //    yoksa "Must declare the scalar variable" hatası alırsın.
+            if (!string.IsNullOrWhiteSpace(arama))
+                komut.Parameters.AddWithValue("@arama", "%" + arama.Trim() + "%");
+
+            if (kategoriId.HasValue && kategoriId.Value > 0)
+                komut.Parameters.AddWithValue("@kategoriId", kategoriId.Value);
+
+            if (!string.IsNullOrWhiteSpace(durum))
+                komut.Parameters.AddWithValue("@durum", durum);
+
+            if (oncelik.HasValue && oncelik.Value > 0)
+                komut.Parameters.AddWithValue("@oncelik", oncelik.Value);
+
+            baglanti.Open();
+
+            using (SqlDataReader okuyucu = komut.ExecuteReader())
+            {
+                while (okuyucu.Read())
+                {
+                    Gorev g = SatiriNesneyeCevir(okuyucu);
+                    g.KategoriAd = okuyucu.GetString(okuyucu.GetOrdinal("kategori_ad"));
+                    g.KategoriRenk = okuyucu.GetString(okuyucu.GetOrdinal("renk"));
+                    liste.Add(g);
+                }
+            }
+        }
+
+        return liste;
+    }
+
 }

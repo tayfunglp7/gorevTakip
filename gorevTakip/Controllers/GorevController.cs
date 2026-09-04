@@ -31,9 +31,22 @@ public class GorevController : Controller
     //  1) LİSTELEME
     //  GET: /Gorev
     // ════════════════════════════════════════════════════════
-    public IActionResult Index()
+    // GET: /Gorev?arama=rapor&kategoriId=2&durum=Beklemede
+    public IActionResult Index(string? arama, long? kategoriId, string? durum,
+                               int? oncelik, bool sadeceGecikmis = false)
     {
-        return View(_gorevRepo.TumunuGetir());
+        var liste = _gorevRepo.Filtrele(arama, kategoriId, durum, oncelik, sadeceGecikmis);
+
+        // ⭐ Filtre değerlerini View'a geri gönder — form dolu kalsın
+        ViewBag.Arama = arama;
+        ViewBag.SeciliKategori = kategoriId;
+        ViewBag.SeciliDurum = durum;
+        ViewBag.SeciliOncelik = oncelik;
+        ViewBag.SadeceGecikmis = sadeceGecikmis;
+
+        KategoriListesiniHazirla(kategoriId);
+
+        return View(liste);
     }
 
     // ════════════════════════════════════════════════════════
@@ -106,6 +119,82 @@ public class GorevController : Controller
 
         _gorevRepo.Guncelle(gorev);
         TempData["Basarili"] = "Görev güncellendi.";
+        return RedirectToAction("Index");
+    }
+
+    // ════════════════════════════════════════════════════════
+    //  6) SİLME ONAY SAYFASI
+    //  GET: /Gorev/Delete/5
+    // ════════════════════════════════════════════════════════
+    public IActionResult Delete(long id)
+    {
+        Gorev? gorev = _gorevRepo.IdIleGetir(id);
+
+        if (gorev == null)
+            return NotFound();
+
+        return View(gorev);
+    }
+
+    // ════════════════════════════════════════════════════════
+    //  7) SİLMEYİ ONAYLA
+    //  POST: /Gorev/Delete/5
+    //
+    //  Metot adı DeleteConfirmed çünkü C#'ta aynı isim + aynı imza ile
+    //  iki metot olamaz. ActionName ile adres yine /Delete kalıyor.
+    // ════════════════════════════════════════════════════════
+    [HttpPost, ActionName("Delete")]
+    [ValidateAntiForgeryToken]
+    public IActionResult DeleteConfirmed(long id)
+    {
+        _gorevRepo.PasifYap(id);
+        TempData["Basarili"] = "Görev silindi.";
+        return RedirectToAction("Index");
+    }
+
+    public IActionResult details(long id)
+    {
+        Gorev? gorev = _gorevRepo.IdIleGetir(id);
+
+        if (gorev == null)
+            return NotFound();
+
+        return View(gorev);
+    }
+
+    /// <summary>
+    /// Görevi tamamlandı olarak işaretler.
+    /// POST: /Gorev/Tamamla/5
+    /// </summary>
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public IActionResult Tamamla(long id, string? donusUrl = null)
+    {
+        _gorevRepo.DurumDegistir(id, "Tamamlandi");
+        TempData["Basarili"] = "Görev tamamlandı.";
+
+        // ⭐ Kullanıcı filtreli bir listedeydi — oraya geri döndürüyoruz.
+        //    Bu olmadan filtresi sıfırlanır ve sinirlenir.
+        if (!string.IsNullOrEmpty(donusUrl) && Url.IsLocalUrl(donusUrl))
+            return Redirect(donusUrl);
+
+        return RedirectToAction("Index");
+    }
+
+    /// <summary>
+    /// Tamamlanmış görevi geri alır.
+    /// POST: /Gorev/GeriAl/5
+    /// </summary>
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public IActionResult GeriAl(long id, string? donusUrl = null)
+    {
+        _gorevRepo.DurumDegistir(id, "Beklemede");
+        TempData["Basarili"] = "Görev yeniden açıldı.";
+
+        if (!string.IsNullOrEmpty(donusUrl) && Url.IsLocalUrl(donusUrl))
+            return Redirect(donusUrl);
+
         return RedirectToAction("Index");
     }
 }
